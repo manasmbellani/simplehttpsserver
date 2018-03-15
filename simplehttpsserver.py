@@ -66,7 +66,7 @@ try:
     if port <= 0:
         raise ValueError("Invalid value provided")
 except Exception as e:
-    print "[-] Error generated: {}".format(str(e))
+    print "[-] Error generated: {0}".format(str(e))
     sys.exit(2)
 
 try:
@@ -77,29 +77,29 @@ try:
     with open(OPENSSL_CONF_TEMPLATE, "rb+") as f:
         conf_file_tmpl = f.read()
     conf_file_tmpl_with_ip = conf_file_tmpl + "\n\n[ alternate_names ]\n"
-    conf_file_tmpl_with_ip += "IP.1 = {}\n".format(ip)
+    conf_file_tmpl_with_ip += "IP.1 = {0}\n".format(ip)
     
     print "[*] Creating new conf file"
     with open("conf_file.config", "wb+") as f:
         f.write(conf_file_tmpl_with_ip)
         
 except Exception as e:
-    print "[-] Error when read openssl cnf file template: {}".format(str(e))
+    print "[-] Error when read openssl cnf file template: {0}".format(str(e))
     sys.exit(3)
 
 print "[*] Generating the SSL key and cert via openssl"
-p = subprocess.Popen(shlex.split("/usr/bin/openssl req -config conf_file.config -new -x509 -keyout server.pem -out server.pem -days 365 -nodes -subj \"/C=US/ST=Denial/L=Springfield/O=Dis/CN={}\"".format(ip)), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+p = subprocess.Popen(shlex.split("/usr/bin/openssl req -config conf_file.config -new -x509 -keyout server.pem -out server.pem -days 365 -nodes -subj \"/C=US/ST=Denial/L=Springfield/O=Dis/CN={0}\"".format(ip)), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 (out, err) = p.communicate()
-print "Output: {}".format(out)
-print "Error : {}".format(err)
+print "Output: {0}".format(out)
+print "Error : {0}".format(err)
 
 try:
-    print "[*] Launching the HTTPS Server on port {}".format(port)
-    httpd = BaseHTTPServer.HTTPServer(('localhost', port), SimpleHTTPServer.SimpleHTTPRequestHandler)
+    print "[*] Launching the HTTPS Server on  ({0},{1})".format(ip, port)
+    httpd = BaseHTTPServer.HTTPServer((ip, port), SimpleHTTPServer.SimpleHTTPRequestHandler)
     httpd.socket = ssl.wrap_socket (httpd.socket, certfile='./server.pem', server_side=True)
     httpd.serve_forever()
 except socket.error as e:
-    print "[-] socket.error: {}".format(str(e))
+    print "[-] socket.error: {0}".format(str(e))
 except KeyboardInterrupt as e:
     print "[-] Cleaning up SSL cert"
     os.remove("server.pem")
