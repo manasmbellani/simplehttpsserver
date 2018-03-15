@@ -15,6 +15,12 @@ It utilizes openssl to generate self-signed ssl keys and then launch the SSL ser
     * OpenSSL conf file: to generate self-signed cert with IP in SAN
 It will also attempt to clean up the generate ssl keys, when interrupted with CTRL + C.
 
+## Setup
+
+Recommended way to install this tool is as follows:
+
+git opt
+
 
 ## Usage and Arguments
     
@@ -26,6 +32,8 @@ It will also attempt to clean up the generate ssl keys, when interrupted with CT
 ## Requirements
 
     * /usr/bin/openssl (OpenSSL Linux Binary)
+
+    * /usr/bin/python (tested with python2)
     
     * Correct file path to opensslconf template should be specified in 
       OPENSSL_CONF_TEMPLATE constant. If installed through the following
