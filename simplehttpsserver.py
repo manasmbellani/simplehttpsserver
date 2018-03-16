@@ -90,8 +90,7 @@ except Exception as e:
 print "[*] Generating the SSL key and cert via openssl"
 p = subprocess.Popen(shlex.split("/usr/bin/openssl req -config conf_file.config -new -x509 -keyout server.pem -out server.pem -days 365 -nodes -subj \"/C=US/ST=Denial/L=Springfield/O=Dis/CN={0}\"".format(ip)), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 (out, err) = p.communicate()
-print "Output: {0}".format(out)
-print "Error : {0}".format(err)
+print "Output: {0}\n{1}".format(out, err)
 
 try:
     print "[*] Launching the HTTPS Server on  ({0},{1})".format(ip, port)
