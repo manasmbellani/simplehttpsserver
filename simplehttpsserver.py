@@ -8,7 +8,128 @@ import subprocess
 import shlex
 import socket
 
-OPENSSL_CONF_TEMPLATE="/opt/simplehttpsserver/openssl.cnf.template"
+OPENSSL_CONF_TEMPLATE="""
+HOME			= .
+RANDFILE		= $ENV::HOME/.rnd
+oid_section		= new_oids
+[ new_oids ]
+tsa_policy1 = 1.2.3.4.1
+tsa_policy2 = 1.2.3.4.5.6
+tsa_policy3 = 1.2.3.4.5.7
+[ ca ]
+default_ca	= CA_default		# The default ca section
+[ CA_default ]
+dir		= ./demoCA		# Where everything is kept
+certs		= $dir/certs		# Where the issued certs are kept
+crl_dir		= $dir/crl		# Where the issued crl are kept
+database	= $dir/index.txt	# database index file.
+					# several certs with same subject.
+new_certs_dir	= $dir/newcerts		# default place for new certs.
+certificate	= $dir/cacert.pem 	# The CA certificate
+serial		= $dir/serial 		# The current serial number
+crlnumber	= $dir/crlnumber	# the current crl number
+					# must be commented out to leave a V1 CRL
+crl		= $dir/crl.pem 		# The current CRL
+private_key	= $dir/private/cakey.pem# The private key
+RANDFILE	= $dir/private/.rand	# private random number file
+x509_extensions	= usr_cert		# The extensions to add to the cert
+name_opt 	= ca_default		# Subject Name options
+cert_opt 	= ca_default		# Certificate field options
+copy_extensions = copy
+default_days	= 365			# how long to certify for
+default_crl_days= 30			# how long before next CRL
+default_md	= default		# use public key default MD
+preserve	= no			# keep passed DN ordering
+policy		= policy_match
+[ policy_match ]
+countryName		= match
+stateOrProvinceName	= match
+organizationName	= match
+organizationalUnitName	= optional
+commonName		= supplied
+emailAddress		= optional
+[ policy_anything ]
+countryName		= optional
+stateOrProvinceName	= optional
+localityName		= optional
+organizationName	= optional
+organizationalUnitName	= optional
+commonName		= supplied
+emailAddress		= optional
+[ req ]
+default_bits		= 2048
+default_keyfile 	= privkey.pem
+distinguished_name	= req_distinguished_name
+attributes		= req_attributes
+x509_extensions	= v3_ca	# The extensions to add to the self signed cert
+string_mask = utf8only
+[ req_distinguished_name ]
+countryName			= Country Name (2 letter code)
+countryName_default		= AU
+countryName_min			= 2
+countryName_max			= 2
+stateOrProvinceName		= State or Province Name (full name)
+stateOrProvinceName_default	= Some-State
+localityName			= Locality Name (eg, city)
+0.organizationName		= Organization Name (eg, company)
+0.organizationName_default	= Internet Widgits Pty Ltd
+organizationalUnitName		= Organizational Unit Name (eg, section)
+commonName			= Common Name (e.g. server FQDN or YOUR name)
+commonName_max			= 64
+emailAddress			= Email Address
+emailAddress_max		= 64
+[ req_attributes ]
+challengePassword		= A challenge password
+challengePassword_min		= 4
+challengePassword_max		= 20
+unstructuredName		= An optional company name
+[ usr_cert ]
+basicConstraints=CA:FALSE
+nsComment			= "OpenSSL Generated Certificate"
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid,issuer
+[ v3_req ]
+basicConstraints = CA:FALSE
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+[ v3_ca ]
+subjectAltName      = @alternate_names
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid:always,issuer
+basicConstraints = critical,CA:true
+keyUsage = digitalSignature, keyEncipherment
+[ crl_ext ]
+authorityKeyIdentifier=keyid:always
+[ proxy_cert_ext ]
+basicConstraints=CA:FALSE
+nsComment			= "OpenSSL Generated Certificate"
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid,issuer
+proxyCertInfo=critical,language:id-ppl-anyLanguage,pathlen:3,policy:foo
+[ tsa ]
+default_tsa = tsa_config1	# the default TSA section
+[ tsa_config1 ]
+dir		= ./demoCA		# TSA root directory
+serial		= $dir/tsaserial	# The current serial number (mandatory)
+crypto_device	= builtin		# OpenSSL engine to use for signing
+signer_cert	= $dir/tsacert.pem 	# The TSA signing certificate
+					# (optional)
+certs		= $dir/cacert.pem	# Certificate chain to include in reply
+					# (optional)
+signer_key	= $dir/private/tsakey.pem # The TSA private key (optional)
+signer_digest  = sha256			# Signing digest to use. (Optional)
+default_policy	= tsa_policy1		# Policy if request did not specify it
+					# (optional)
+other_policies	= tsa_policy2, tsa_policy3	# acceptable policies (optional)
+digests     = sha1, sha256, sha384, sha512  # Acceptable message digests (mandatory)
+accuracy	= secs:1, millisecs:500, microsecs:100	# (optional)
+clock_precision_digits  = 0	# number of digits after dot. (optional)
+ordering		= yes	# Is ordering defined for timestamps?
+				# (optional, default: no)
+tsa_name		= yes	# Must the TSA name be included in the reply?
+				# (optional, default: no)
+ess_cert_id_chain	= no	# Must the ESS cert id chain be included?
+				# (optional, default: no)
+"""
 
 DESCRIPTION="""Usage: {0} <ip> <port>
 
@@ -25,14 +146,7 @@ Arguments:
 
 Requirements:
     * /usr/bin/openssl (OpenSSL Linux Binary)
-    
-    * Correct file path to opensslconf template should be specified in 
-      OPENSSL_CONF_TEMPLATE constant. If installed through the following
-      command, then the default OPENSSL_CONF_TEMPLATE value is correct.
-        git clone https://github.com/manasmbellani/simplehttpsserver /opt/simplehttpsserver/
-    
-    * Executing directory must be writable to generate and cleanup 
-      server.pem and openssl conf file generated
+    * /tmp/ must be writable by the user running the script
 
 Examples:
     * To start HTTPS Server on port 443 on the localhost in current dir, simple move {0} to the appropriate server directory and run, 
@@ -70,17 +184,12 @@ except Exception as e:
     sys.exit(2)
 
 try:
-    if not os.path.exists(OPENSSL_CONF_TEMPLATE):
-        raise ValueError("Openssl conf file does not exist")
-
-    print "[*] Reading existing conf file"
-    with open(OPENSSL_CONF_TEMPLATE, "rb+") as f:
-        conf_file_tmpl = f.read()
-    conf_file_tmpl_with_ip = conf_file_tmpl + "\n\n[ alternate_names ]\n"
+    print "[*] Preparing the openssl conf file for generating self-signed cert with SAN"
+    conf_file_tmpl_with_ip = OPENSSL_CONF_TEMPLATE + "\n\n[ alternate_names ]\n"
     conf_file_tmpl_with_ip += "IP.1 = {0}\n".format(ip)
     
     print "[*] Creating new conf file"
-    with open("conf_file.config", "wb+") as f:
+    with open("/tmp/conf_file.config", "wb+") as f:
         f.write(conf_file_tmpl_with_ip)
         
 except Exception as e:
@@ -88,20 +197,20 @@ except Exception as e:
     sys.exit(3)
 
 print "[*] Generating the SSL key and cert via openssl"
-p = subprocess.Popen(shlex.split("/usr/bin/openssl req -config conf_file.config -new -x509 -keyout server.pem -out server.pem -days 365 -nodes -subj \"/C=US/ST=Denial/L=Springfield/O=Dis/CN={0}\"".format(ip)), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+p = subprocess.Popen(shlex.split("/usr/bin/openssl req -config /tmp/conf_file.config -new -x509 -keyout /tmp/server.pem -out /tmp/server.pem -days 365 -nodes -subj \"/C=US/ST=Denial/L=Springfield/O=Dis/CN={0}\"".format(ip)), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 (out, err) = p.communicate()
 print "Output: {0}\n{1}".format(out, err)
 
 try:
     print "[*] Launching the HTTPS Server on  ({0},{1})".format(ip, port)
     httpd = BaseHTTPServer.HTTPServer((ip, port), SimpleHTTPServer.SimpleHTTPRequestHandler)
-    httpd.socket = ssl.wrap_socket (httpd.socket, certfile='./server.pem', server_side=True)
+    httpd.socket = ssl.wrap_socket (httpd.socket, certfile='/tmp/server.pem', server_side=True)
     httpd.serve_forever()
 except socket.error as e:
     print "[-] socket.error: {0}".format(str(e))
 except KeyboardInterrupt as e:
     print "[-] Cleaning up SSL cert"
-    os.remove("server.pem")
+    os.remove("/tmp/server.pem")
 
     print "[-] Cleaning up config file"
-    os.remove("conf_file.config")
+    os.remove("/tmp/conf_file.config")
